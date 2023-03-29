@@ -1,0 +1,42 @@
+
+project(hm800_model)
+
+# unset(TVM_LIBRARY CACHE)
+# set(HDPL_TOOLCHAIN_ITVM_INSTALL "/home/binfeng.zhang/platform/toolchain/itvm/build/install")
+# if(DEFINED ENV{HDPL_TOOLCHAIN_ITVM_INSTALL})
+#   message(STATUS "HDPL_TOOLCHAIN_ITVM_INSTALL: " $ENV{HDPL_TOOLCHAIN_ITVM_INSTALL})
+#   set(HDPL_TOOLCHAIN_ITVM_INSTALL $ENV{HDPL_TOOLCHAIN_ITVM_INSTALL})
+# endif()
+find_library(TVM_LIBRARY NAMES tvm PATHS ${HDPL_TOOLCHAIN_ITVM_INSTALL} NO_DEFAULT_PATH)
+if(NOT DEFINED ${TVM_LIBRARY})
+  find_library(TVM_LIBRARY NAMES tvm PATHS ${HDPL_TOOLCHAIN_ITVM_INSTALL}/lib NO_DEFAULT_PATH)
+endif()
+
+# if(DEFINED ENV{HOUMO_PATH})
+#   set(HDPL_INSTALL_PATH $ENV{HOUMO_PATH})
+# else()
+#   set(HDPL_INSTALL_PATH $ENV{HDPL_PATH})
+# endif()
+
+if(NOT DEFINED ${HDPL_LIBRARY})
+  find_library(HDPL_LIBRARY NAMES hdplrt PATHS ${HDPL_INSTALL_PATH}/lib NO_DEFAULT_PATH)
+endif()
+
+include_directories(${HDPL_INSTALL_PATH}/include)
+include_directories(${HDPL_TOOLCHAIN_ITVM_INSTALL}/include)
+message(STATUS "HDPL_TOOLCHAIN DIR: ${HDPL_TOOLCHAIN_ITVM_INSTALL}")
+
+# set(inferenceSources ${CMAKE_CURRENT_LIST_DIR}/box.cc hdpl_yolo_layer.cc)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/)
+include_directories(${HDPL_TOOLCHAIN_ITVM_INSTALL}/include)
+
+# find_package(OpenCV REQUIRED)
+# include_directories(${OpenCV_INCLUDE_DIRS})
+add_definitions(-w)
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O2 -g")
+add_library(hm800_model hm800_model.cpp)
+# target_link_libraries(hdpl_multi_batch_run ${OpenCV_LIBS})
+target_link_libraries(hm800_model ${TVM_LIBRARY} ${HDPL_LIBRARY} -pthread dl gomp)
+target_include_directories(hm800_model INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(hm800_model inference_runtime)
+target_link_libraries(hm800_model interfaces)
