@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 
 set(SERVER_PLATFORM 0)
-set(WITHOUT_IMAGE_READING true)
+set(WITHOUT_IMAGE_READING false)
 set(LISTEN_PORT 11188)
 set(DATASET_DIR "/media/orin/root/binfeng/coco-val2017-5000/")
 set(POST_URL "/orin_request")
@@ -39,6 +39,9 @@ else()
     include_directories(${HDPL_TOOLCHAIN_ITVM_INSTALL}/include)
 endif()
 
+
+find_package(glog REQUIRED)
+
 add_subdirectory(common)
 add_subdirectory(interfaces)
 add_subdirectory(model_instance)
@@ -47,6 +50,10 @@ add_subdirectory(crow)
 add_subdirectory(inference_runtime)
 add_subdirectory(dataloader)
 add_subdirectory(models)
+add_subdirectory(model_framework)
+
+enable_testing()
+add_subdirectory(gtest)
 
 
 
@@ -78,3 +85,6 @@ endif()
 target_include_directories(server PUBLIC 
     "${PROJECT_BINARY_DIR}"
 )
+
+
+
