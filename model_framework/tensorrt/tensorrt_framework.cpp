@@ -26,7 +26,7 @@ TRTModelFramework::TRTModelFramework(const std::string model_path) {
     prepareContext();
     // cudaStreamCreate(&stream);
 
-    _engine_built_with_explicit_batch = engine->hasImplicitBatchDimension();
+    // _engine_built_with_implicit_batch = engine->hasImplicitBatchDimension();
 }
 
 
@@ -63,6 +63,8 @@ void TRTModelFramework::prepareContext(){
     for (int i = 0 ; i < bd_number ; i++)
 	{
 		nvinfer1::Dims dims = engine->getBindingDimensions(i);
+        if (dims.d[0] == -1) _engine_built_with_implicit_batch = true;
+
         if (i > 0)
             LOG(INFO) << "blob name : " << engine->getBindingName(i) 
                         << " dims : " 
@@ -96,7 +98,7 @@ std::vector<void*>& TRTModelFramework::get_buffer(){
 
 
 void TRTModelFramework::framework_forward(const int batch_size){
-    if (!_engine_built_with_explicit_batch){    
+    if (_engine_built_with_implicit_batch){    
         int bd_number = engine->getNbBindings();
         for (int i = 0 ; i < bd_number ; i++)
         {
@@ -108,19 +110,15 @@ void TRTModelFramework::framework_forward(const int batch_size){
         }  
     }
     CHECK(context->executeV2(buffers.data()));
-    // CHECK(context->execute(batch_size, buffers.data()));
 }
 
-// void TRTModelFramework::inferenceRounds(vector<shared_ptr<float>>& roundsPtr){
-//     int input_byte_size = input_height * input_width * input_channel * batch_size * sizeof(float);
-//     for (auto& data_ptr : roundsPtr){
-//         if (!model_config->noDataTransfers())
-//             cudaMemcpyAsync(buffers[0],data_ptr.get(),input_byte_size,cudaMemcpyHostToDevice,stream);
-//         // context->enqueue(batch_size,buffers.data(),stream,NULL);
-//         context->enqueueV2(buffers.data(),stream,NULL);
-//         cudaStreamSynchronize(stream);    
-//     }
-// }
+TRTModelFramework::~TRTModelFramework(){
+    LOG(INFO) << "destruction of tensorrt framework, free buffer ptrs";
+    for (void * ptr : buffers){
+        auto ret = cudaFree(ptr);
+        CHECK(ret == cudaSuccess);
+    }
+}
 
 } // TensorRT
 

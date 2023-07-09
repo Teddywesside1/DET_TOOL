@@ -41,7 +41,7 @@ public:
 
     std::vector<void*>& get_buffer() override;
 
-    ~TRTModelFramework(){}
+    ~TRTModelFramework();
 
 private:
     void loadEngine(const string& engine_file_path);
@@ -54,7 +54,7 @@ private:
     unique_ptr<IExecutionContext> context{nullptr};
     vector<void*> buffers;
 
-    bool _engine_built_with_explicit_batch = true;
+    bool _engine_built_with_implicit_batch = true;
 };
 
 

@@ -67,7 +67,7 @@ int Yolov5::pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataload
                         std::vector<ImageScaleInfo> &image_scale_info,
                         void * input_blob){
     const int single_channel_pixel_size = _input_height * _input_width;
-    const int single_image_byte_size = single_channel_pixel_size * _input_channel * sizeof(float);
+    const int single_image_float_element_size = single_channel_pixel_size * _input_channel;
     std::vector<float *> input_blobs(1);
     input_blobs[0] = static_cast<float*>(input_blob);
 
@@ -106,9 +106,11 @@ int Yolov5::pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataload
                         data_ptr[idx + 2 * single_channel_pixel_size] = pixel_ptr[0] / 255.0;
                         pixel_ptr += 3;
                         ++ idx;
+                        // if (data_ptr > input_blobs[0]) 
+                        //     LOG(INFO) << "buffer data : " << data_ptr[idx] << ",  pixel value : " << pixel_ptr[2] / 255.0;
                     }
                 }
-                return single_image_byte_size;
+                return single_image_float_element_size;
             };
 
 
@@ -196,75 +198,70 @@ void Yolov5::generate_anchor_from_blob( const int batch_size,
     const int level_width = _input_width / scale_factor;
     const int level_anchor_number = level_anchor.size();
     const int features_per_anchor = 5 + _cls_number;
-    const int total_float_element_number = batch_size 
-                                        * level_height
+    const int total_float_element_number_per_batch = level_height
                                         * level_width
                                         * level_anchor_number 
                                         * features_per_anchor;
-    const int float_element_number_per_anchor = batch_size 
-                                        * level_height
-                                        * level_width
-                                        * features_per_anchor;
+    const int float_element_number_per_anchor = level_height
+                                            * level_width
+                                            * features_per_anchor;
     /*
         data in pointer `output_blob` is a flatten of 
-            tensor [anchor_number, height, width, features_per_anchor]
+            tensor [batch_size, anchor_number, height, width, features_per_anchor]
     */
-   const int level_total_pixel = level_height * level_width;
+    const int level_total_pixel = level_height * level_width;
 
-    /*
-        TODO:
-            multi-batch infer
-    */
-    int batch_idx = 0;
+    for (int batch_idx = 0; batch_idx < batch_size ; ++ batch_idx){
+        const int offset_in_batch = total_float_element_number_per_batch * batch_idx;
+        for (int anchor_idx = 0 ; anchor_idx < level_anchor_number ; ++ anchor_idx){
+            const int anchor_width = level_anchor[anchor_idx].width;
+            const int anchor_height = level_anchor[anchor_idx].height;
+            const int offset_in_anchor = offset_in_batch + float_element_number_per_anchor * anchor_idx;
+            for (int f_r = 0 ; f_r < level_height ; ++ f_r){
+                for (int f_c = 0 ; f_c < level_width ; ++ f_c){
+                    // 1. get the feature for target anchor at [anchor_idx, f_r, f_c]
+                    const int offset_in_pixel = offset_in_anchor + (f_r * level_width + f_c) * features_per_anchor;
+                    const float * tmp = &output_blob[offset_in_pixel];
+                    // memcpy(tmp.data(), &output_blob[offset_in_pixel], sizeof(float) * features_per_anchor);
 
-    for (int anchor_idx = 0 ; anchor_idx < level_anchor_number ; ++ anchor_idx){
-        const int anchor_width = level_anchor[anchor_idx].width;
-        const int anchor_height = level_anchor[anchor_idx].height;
-        const int offset_in_anchor = float_element_number_per_anchor * anchor_idx;
-        for (int f_r = 0 ; f_r < level_height ; ++ f_r){
-            for (int f_c = 0 ; f_c < level_width ; ++ f_c){
-                // 1. get the feature for target anchor at [anchor_idx, f_r, f_c]
-                const int offset_in_pixel = offset_in_anchor + (f_r * level_width + f_c) * features_per_anchor;
-                const float * tmp = &output_blob[offset_in_pixel];
-                // memcpy(tmp.data(), &output_blob[offset_in_pixel], sizeof(float) * features_per_anchor);
-
-                // 2. get most likely class
-                int class_idx = 0;
-                float class_score = tmp[5];
-                for (int i = 1 ; i < _cls_number ; ++ i){
-                    if (tmp[5 + i] > class_score){
-                        class_score = tmp[5 + i];
-                        class_idx = i;
+                    // 2. get most likely class
+                    int class_idx = 0;
+                    float class_score = tmp[5];
+                    for (int i = 1 ; i < _cls_number ; ++ i){
+                        if (tmp[5 + i] > class_score){
+                            class_score = tmp[5 + i];
+                            class_idx = i;
+                        }
                     }
-                }
-                // 3. get confidence
-                const float confidence = sigmoid(class_score) * sigmoid(tmp[4]);
+                    // 3. get confidence
+                    const float confidence = sigmoid(class_score) * sigmoid(tmp[4]);
+                    // if (batch_idx == 1) LOG(INFO) << "confidence : " << confidence;
+                    // 4. compute bbox
+                    if (confidence > conf_thresh){
+                        const float dx = sigmoid(tmp[0]);
+                        const float dy = sigmoid(tmp[1]);
+                        const float dw = sigmoid(tmp[2]);
+                        const float dh = sigmoid(tmp[3]);
 
-                // 4. compute bbox
-                if (confidence > conf_thresh){
-                    const float dx = sigmoid(tmp[0]);
-                    const float dy = sigmoid(tmp[1]);
-                    const float dw = sigmoid(tmp[2]);
-                    const float dh = sigmoid(tmp[3]);
+                        const float bbox_width = pow(dw * 2.f, 2) * anchor_width;
+                        const float bbox_height = pow(dh * 2.f, 2) * anchor_height;
 
-                    const float bbox_width = pow(dw * 2.f, 2) * anchor_width;
-                    const float bbox_height = pow(dh * 2.f, 2) * anchor_height;
+                        const float center_x = (f_c + dx * 2.f - 0.5f) * scale_factor - bbox_width * 0.5;
+                        const float center_y = (f_r + dy * 2.f - 0.5f) * scale_factor - bbox_height * 0.5;
 
-                    const float center_x = (f_c + dx * 2.f - 0.5f) * scale_factor - bbox_width * 0.5;
-                    const float center_y = (f_r + dy * 2.f - 0.5f) * scale_factor - bbox_height * 0.5;
-
-                    candidate_objs[batch_idx].push_back({
-                        static_cast<int>(center_x),
-                        static_cast<int>(center_y),
-                        static_cast<int>(bbox_width),
-                        static_cast<int>(bbox_height),
-                        class_idx,
-                        confidence
-                    });
-                }
-            }   // f_c
-        }   // f_r
-    }   // anchor_idx
+                        candidate_objs[batch_idx].push_back({
+                            static_cast<int>(center_x),
+                            static_cast<int>(center_y),
+                            static_cast<int>(bbox_width),
+                            static_cast<int>(bbox_height),
+                            class_idx,
+                            confidence
+                        });
+                    }
+                }   // f_c
+            }   // f_r
+        }   // anchor_idx
+    }   // batch_idx
 
 }
 
