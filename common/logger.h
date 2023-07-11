@@ -15,27 +15,23 @@
  * limitations under the License.
  */
 
-#include "logger.h"
-#include "ErrorRecorder.h"
+#ifndef LOGGER_H
+#define LOGGER_H
+
 #include "logging.h"
 
-SampleErrorRecorder gRecorder;
+class SampleErrorRecorder;
+extern SampleErrorRecorder gRecorder;
 namespace sample
 {
-Logger gLogger{Logger::Severity::kINFO};
-LogStreamConsumer gLogVerbose{LOG_VERBOSE(gLogger)};
-LogStreamConsumer gLogInfo{LOG_INFO(gLogger)};
-LogStreamConsumer gLogWarning{LOG_WARN(gLogger)};
-LogStreamConsumer gLogError{LOG_ERROR(gLogger)};
-LogStreamConsumer gLogFatal{LOG_FATAL(gLogger)};
+extern Logger gLogger;
+extern LogStreamConsumer gLogVerbose;
+extern LogStreamConsumer gLogInfo;
+extern LogStreamConsumer gLogWarning;
+extern LogStreamConsumer gLogError;
+extern LogStreamConsumer gLogFatal;
 
-void setReportableSeverity(Logger::Severity severity)
-{
-    gLogger.setReportableSeverity(severity);
-    gLogVerbose.setReportableSeverity(severity);
-    gLogInfo.setReportableSeverity(severity);
-    gLogWarning.setReportableSeverity(severity);
-    gLogError.setReportableSeverity(severity);
-    gLogFatal.setReportableSeverity(severity);
-}
+void setReportableSeverity(Logger::Severity severity);
 } // namespace sample
+
+#endif // LOGGER_H

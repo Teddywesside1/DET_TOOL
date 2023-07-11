@@ -37,7 +37,8 @@ struct Anchor2D{
 class IModelInferenceObjectDetection2D : public IModelInference{
 public:
     virtual void 
-    do_inference(const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
+    do_inference(const float conf_thresh,
+                const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
                 std::vector<std::vector<Object2D>> &output_objs) = 0;
 protected:
     IModelInferenceObjectDetection2D(std::shared_ptr<ModelFramework::IModelFramework> & model_instance)

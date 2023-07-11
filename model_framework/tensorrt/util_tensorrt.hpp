@@ -44,7 +44,7 @@ public:
 
 
 void 
-create_engine_from_onnx(const std::string &onnx_file_path);
+create_int8_engine_from_onnx(const std::string &onnx_file_path);
 
 
 

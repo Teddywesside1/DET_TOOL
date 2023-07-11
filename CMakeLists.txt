@@ -44,47 +44,48 @@ find_package(glog REQUIRED)
 
 add_subdirectory(common)
 add_subdirectory(interfaces)
-add_subdirectory(model_instance)
-add_subdirectory(gpu_status)
-add_subdirectory(crow)
-add_subdirectory(inference_runtime)
+# add_subdirectory(model_instance)
+# add_subdirectory(gpu_status)
+# add_subdirectory(crow)
+# add_subdirectory(inference_runtime)
 add_subdirectory(dataloader)
 add_subdirectory(models)
 add_subdirectory(model_framework)
+add_subdirectory(tools)
 
 enable_testing()
 add_subdirectory(gtest)
 
 
 
-add_executable(server src/main.cpp src/models_manager.cpp)
-target_link_libraries(server PUBLIC crow)
-target_link_libraries(server PUBLIC inference_runtime)
-if (WITHOUT_IMAGE_READING)
-    target_link_libraries(server PUBLIC dataloader_fake)
-else()
-    target_link_libraries(server PUBLIC dataloader_offline)
-    target_link_libraries(server PUBLIC dataloader_online)
-endif()
-target_link_libraries(server PUBLIC yolov3)
-target_link_libraries(server PUBLIC resnet50)
-target_link_libraries(server PUBLIC -lpthread)
-target_link_libraries(server PUBLIC interfaces)
+# add_executable(server src/main.cpp src/models_manager.cpp)
+# target_link_libraries(server PUBLIC crow)
+# target_link_libraries(server PUBLIC inference_runtime)
+# if (WITHOUT_IMAGE_READING)
+#     target_link_libraries(server PUBLIC dataloader_fake)
+# else()
+#     target_link_libraries(server PUBLIC dataloader_offline)
+#     target_link_libraries(server PUBLIC dataloader_online)
+# endif()
+# target_link_libraries(server PUBLIC yolov3)
+# target_link_libraries(server PUBLIC resnet50)
+# target_link_libraries(server PUBLIC -lpthread)
+# target_link_libraries(server PUBLIC interfaces)
 
 
-if (SERVER_PLATFORM MATCHES 0)
-    target_link_libraries(server PUBLIC jetson_status)
-    target_link_libraries(server PUBLIC tensorrt_model)
-else()
-    target_link_libraries(server PUBLIC temp)
-    target_link_libraries(server PUBLIC hm800_model)
-    target_link_libraries(server PUBLIC hm800_status)
-endif()
+# if (SERVER_PLATFORM MATCHES 0)
+#     target_link_libraries(server PUBLIC jetson_status)
+#     target_link_libraries(server PUBLIC tensorrt_model)
+# else()
+#     target_link_libraries(server PUBLIC temp)
+#     target_link_libraries(server PUBLIC hm800_model)
+#     target_link_libraries(server PUBLIC hm800_status)
+# endif()
 
 
-target_include_directories(server PUBLIC 
-    "${PROJECT_BINARY_DIR}"
-)
+# target_include_directories(server PUBLIC 
+#     "${PROJECT_BINARY_DIR}"
+# )
 
 
 

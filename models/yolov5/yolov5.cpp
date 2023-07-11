@@ -26,7 +26,8 @@ Yolov5::Yolov5(std::shared_ptr<ModelFramework::IModelFramework> model_instance,
     _nms_thresh = 0.45;
 }
 
-void Yolov5::do_inference(const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
+void Yolov5::do_inference(const float conf_thresh,
+                        const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
                         std::vector<std::vector<Object2D>> &output_objs){
     // 1. get the infer data buffer 
     std::vector<void*> &buffers = _model_instance->get_buffer();
@@ -53,7 +54,7 @@ void Yolov5::do_inference(const std::shared_ptr<DataLoader::IDataLoader>& datalo
     }
     output_objs.clear();
     output_objs.resize(batch_size);
-    post_process(batch_size, output_blobs, output_objs);
+    post_process(batch_size, conf_thresh, output_blobs, output_objs);
     end = std::chrono::high_resolution_clock::now();
     LOG(INFO) << "post_process, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     
@@ -142,13 +143,9 @@ void Yolov5::scale_objs_to_origin_image_size(
 
 
 void Yolov5::post_process(const int batch_size,
+                const float conf_thresh,
                 std::vector<float*> &output_blobs,
                 std::vector<std::vector<Object2D>> &output_objs){
-    /*
-        TODO:
-            custom `conf_thresh`
-    */
-    const float conf_thresh = 0.7;
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<Object2D>> candidate_objs(batch_size);

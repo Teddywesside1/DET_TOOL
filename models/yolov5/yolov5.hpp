@@ -18,7 +18,8 @@ public:
         const int input_width,
         const int input_channel);
 public:
-    void do_inference(const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
+    void do_inference(const float conf_thresh,
+                    const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
                     std::vector<std::vector<Object2D>> &output_objs) override;
 
 private:
@@ -28,6 +29,7 @@ private:
 
 
     void post_process(const int batch_size,
+                    const float conf_thresh,
                     std::vector<float*> &output_blobs,
                     std::vector<std::vector<Object2D>> &output_objs);
 

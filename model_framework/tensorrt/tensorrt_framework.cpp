@@ -1,7 +1,6 @@
 #include "tensorrt_framework.hpp"
 
 
-#include "common.hpp"
 #include <fstream>
 #include <iostream>
 #include <chrono>
@@ -25,7 +24,6 @@ TRTModelFramework::TRTModelFramework(const std::string model_path) {
     loadEngine(model_path);
     prepareContext();
     // cudaStreamCreate(&stream);
-
     // _engine_built_with_implicit_batch = engine->hasImplicitBatchDimension();
 }
 
@@ -49,7 +47,7 @@ void TRTModelFramework::loadEngine(const string& engine_file_path) {
     file.close();
 
     unique_ptr<IRuntime> runtime{nvinfer1::createInferRuntime(logger)};
-
+    
     engine.reset(runtime->deserializeCudaEngine(data.data(), data.size()));
 }
 
@@ -73,6 +71,7 @@ void TRTModelFramework::prepareContext(){
                         << dims.d[2] << " "
                         << dims.d[3] << " "
                         << dims.d[4];
+        
 		int dim_byte_size = getSizeByDim(dims) * MAX_BATCH_SIZE * sizeof(float);
         // cudaMalloc(&buffers[i], dim_byte_size);
         auto ret = cudaMallocManaged(&buffers[i], dim_byte_size);

@@ -8,6 +8,8 @@ using namespace DataLoader;
 using namespace ModelFramework::TensorRT;
 using namespace ModelInference::ObjectDetection2D;
 
+const float CONF_THRESH = 0.3;
+
 
 TEST(det_infer_single_batch_one_run, yolov5)
 {
@@ -20,7 +22,7 @@ TEST(det_infer_single_batch_one_run, yolov5)
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<Object2D>> outputs;
-    yolo_model.do_inference(dataloader, outputs);
+    yolo_model.do_inference(CONF_THRESH, dataloader, outputs);
     auto end = std::chrono::high_resolution_clock::now();    
     LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
@@ -45,7 +47,7 @@ TEST(det_infer_single_batch_many_run, yolov5)
 
         auto start = std::chrono::high_resolution_clock::now();
         std::vector<std::vector<Object2D>> outputs;
-        yolo_model.do_inference(dataloader, outputs);
+        yolo_model.do_inference(CONF_THRESH, dataloader, outputs);
         auto end = std::chrono::high_resolution_clock::now();    
         LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     }
@@ -69,7 +71,7 @@ TEST(det_infer_multi_batch_one_run, yolov5)
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<Object2D>> outputs;
-    yolo_model.do_inference(dataloader, outputs);
+    yolo_model.do_inference(CONF_THRESH, dataloader, outputs);
     auto end = std::chrono::high_resolution_clock::now();    
     LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
@@ -101,7 +103,7 @@ static void multi_batch_infer(const std::string test_image_path,
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<Object2D>> outputs;
-    yolo_model.do_inference(dataloader, outputs);
+    yolo_model.do_inference(CONF_THRESH, dataloader, outputs);
     auto end = std::chrono::high_resolution_clock::now();    
     LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
