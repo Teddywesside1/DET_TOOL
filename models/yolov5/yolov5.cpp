@@ -12,17 +12,16 @@ namespace ObjectDetection2D{
 Yolov5::Yolov5(std::shared_ptr<ModelFramework::IModelFramework> model_instance,
             const int input_height,
             const int input_width,
-            const int input_channel) 
+            const int input_channel,
+            const int cls_number) 
             : IModelInferenceObjectDetection2D(model_instance)
             , _input_height(input_height)
             , _input_width(input_width)
-            , _input_channel(input_channel){
-    // _model_instance = model_instance;
-    /*
-        TODO:
-            custom _cls_number、_nms_thresh
-    */
-    _cls_number = 80;
+            , _input_channel(input_channel)
+            , _cls_number(cls_number)
+            , _resize_strategy(input_height, input_width)
+            , _flatten_strategy(){
+
     _nms_thresh = 0.45;
 }
 
@@ -35,7 +34,7 @@ void Yolov5::do_inference(const float conf_thresh,
 
     // 2. preprocess images and store scale_info
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<ImageScaleInfo> image_scale_info;
+    std::vector<DataLoader::BatchInfo> image_scale_info;
     const int batch_size = pre_process(dataloader, image_scale_info, buffers[0]);
     auto end = std::chrono::high_resolution_clock::now();
     LOG(INFO) << "pre_process, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -65,71 +64,72 @@ void Yolov5::do_inference(const float conf_thresh,
 
 
 int Yolov5::pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataloader,
-                        std::vector<ImageScaleInfo> &image_scale_info,
+                        std::vector<DataLoader::BatchInfo> &image_scale_info,
                         void * input_blob){
-    const int single_channel_pixel_size = _input_height * _input_width;
-    const int single_image_float_element_size = single_channel_pixel_size * _input_channel;
+    // const int single_channel_pixel_size = _input_height * _input_width;
+    // const int single_image_float_element_size = single_channel_pixel_size * _input_channel;
     std::vector<float *> input_blobs(1);
     input_blobs[0] = static_cast<float*>(input_blob);
 
-    auto resize_strategy = 
-            [&](const cv::Mat& image){
-                const int ori_height = image.rows;
-                const int ori_width = image.cols;
-                int fix_height, fix_width;
-                float scale;
-                if (ori_height > ori_width){
-                    fix_height = _input_height;
-                    scale = _input_height / static_cast<float>(ori_height);
-                    fix_width = static_cast<int>(ori_width * scale);
-                }else{
-                    fix_width = _input_width;
-                    scale = _input_width / static_cast<float>(ori_width);
-                    fix_height = static_cast<int>(ori_height * scale);
-                }
-                image_scale_info.push_back(ImageScaleInfo{ori_height, ori_width, scale});
+    // auto resize_strategy = 
+    //         [&](const cv::Mat& image){
+    //             const int ori_height = image.rows;
+    //             const int ori_width = image.cols;
+    //             int fix_height, fix_width;
+    //             float scale;
+    //             if (ori_height > ori_width){
+    //                 fix_height = _input_height;
+    //                 scale = _input_height / static_cast<float>(ori_height);
+    //                 fix_width = static_cast<int>(ori_width * scale);
+    //             }else{
+    //                 fix_width = _input_width;
+    //                 scale = _input_width / static_cast<float>(ori_width);
+    //                 fix_height = static_cast<int>(ori_height * scale);
+    //             }
+    //             image_scale_info.push_back(ImageScaleInfo{ori_height, ori_width, scale});
 
-                cv::Mat resized_image;
-                cv::resize(image, resized_image, {fix_width, fix_height});
-                auto out = std::make_shared<cv::Mat>(_input_height, _input_width, CV_8UC3, cv::Scalar{0, 0, 0});
-                resized_image.copyTo((*out)(cv::Rect(0, 0, fix_width, fix_height)));
-                return out;
-            };
+    //             cv::Mat resized_image;
+    //             cv::resize(image, resized_image, {fix_width, fix_height});
+    //             auto out = std::make_shared<cv::Mat>(_input_height, _input_width, CV_8UC3, cv::Scalar{0, 0, 0});
+    //             resized_image.copyTo((*out)(cv::Rect(0, 0, fix_width, fix_height)));
+    //             return out;
+    //         };
 
-    auto flatten_strategy = 
-            [&](float* data_ptr, const cv::Mat& image){
-                int idx = 0;
-                for (int r = 0 ; r < _input_height ; ++ r){
-                    uchar* pixel_ptr = image.data + r * image.step;
-                    for (int c = 0 ; c < _input_width ; ++ c){
-                        data_ptr[idx] = pixel_ptr[2] / 255.0;
-                        data_ptr[idx + single_channel_pixel_size] = pixel_ptr[1] / 255.0;
-                        data_ptr[idx + 2 * single_channel_pixel_size] = pixel_ptr[0] / 255.0;
-                        pixel_ptr += 3;
-                        ++ idx;
-                        // if (data_ptr > input_blobs[0]) 
-                        //     LOG(INFO) << "buffer data : " << data_ptr[idx] << ",  pixel value : " << pixel_ptr[2] / 255.0;
-                    }
-                }
-                return single_image_float_element_size;
-            };
+    // auto flatten_strategy = 
+    //         [&](float* data_ptr, const cv::Mat& image){
+    //             int idx = 0;
+    //             for (int r = 0 ; r < _input_height ; ++ r){
+    //                 uchar* pixel_ptr = image.data + r * image.step;
+    //                 for (int c = 0 ; c < _input_width ; ++ c){
+    //                     data_ptr[idx] = pixel_ptr[2] / 255.0;
+    //                     data_ptr[idx + single_channel_pixel_size] = pixel_ptr[1] / 255.0;
+    //                     data_ptr[idx + 2 * single_channel_pixel_size] = pixel_ptr[0] / 255.0;
+    //                     pixel_ptr += 3;
+    //                     ++ idx;
+    //                     // if (data_ptr > input_blobs[0]) 
+    //                     //     LOG(INFO) << "buffer data : " << data_ptr[idx] << ",  pixel value : " << pixel_ptr[2] / 255.0;
+    //                 }
+    //             }
+    //             return single_image_float_element_size;
+    //         };
 
 
-    return dataloader->get_batch(resize_strategy,
-                                flatten_strategy,
-                                input_blobs );    
+    return dataloader->get_batch(_resize_strategy,
+                                _flatten_strategy,
+                                input_blobs,
+                                image_scale_info);    
 
 }
 
 
 void Yolov5::scale_objs_to_origin_image_size(
                         std::vector<std::vector<Object2D>> &output_objs,
-                        std::vector<ImageScaleInfo> &image_scale_info){
+                        std::vector<DataLoader::BatchInfo> &image_scale_info){
     CHECK(output_objs.size() == image_scale_info.size());
 
     const int batch_size = image_scale_info.size();
     for (int i = 0 ; i < batch_size ; ++ i){
-        const ImageScaleInfo & info = image_scale_info[i];
+        const DataLoader::BatchInfo & info = image_scale_info[i];
         // LOG(INFO) << "image_scale_info, batch_idx : " << i << " scale : " << info.scale;
         auto & objects = output_objs[i];
         for (auto & obj : objects){

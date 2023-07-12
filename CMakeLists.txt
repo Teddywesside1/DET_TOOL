@@ -51,6 +51,7 @@ add_subdirectory(interfaces)
 add_subdirectory(dataloader)
 add_subdirectory(models)
 add_subdirectory(model_framework)
+add_subdirectory(process_strategy)
 add_subdirectory(tools)
 
 enable_testing()

@@ -17,9 +17,13 @@
 #include "sampleInference.h"
 #include "sampleOptions.h"
 #include "sampleReporting.h"
+#include "resize_strategy.hpp"
+#include "flatten_strategy.hpp"
 
 
 using namespace nvinfer1;
+
+using namespace ModelInference::ProcessStrategy;
 
 
 static void show_usage(void){
@@ -35,52 +39,34 @@ static void show_usage(void){
 
 class INT8_Calibrator : public IInt8EntropyCalibrator{
 public:
-    INT8_Calibrator(std::shared_ptr<INetworkDefinition> network)
-                : _network(network){
-        if ()
+    INT8_Calibrator(std::shared_ptr<INetworkDefinition> network,
+                    const int batch_size,
+                    const std::string& calib_dataset_dir)
+                : _network(network)
+                , _batch_size(batch_size)
+                , _input_height(_network->getInput(0)->getDimensions().d[2])
+                , _input_width(_network->getInput(0)->getDimensions().d[3])
+                , _input_channel(_network->getInput(0)->getDimensions().d[1])
+                , _resize_strategy(_input_height, _input_width){
+        const int nbBindings = _network->getNbInputs() + _network->getNbOutputs();
+        _buffers.resize(nbBindings);
+        for (int i = 0 ; i < _network->getNbInputs() ; ++ i){
+            Dims dim = _network->getInput(i)->getDimensions();
+            int byte_size_to_malloc = _batch_size * sizeof(float);
+            for (int j = 1 ; j < dim.nbDims ; ++ j){
+                byte_size_to_malloc *= dim.d[j];
+            }
+            CHECK(cudaMallocManaged(&_buffers[i], byte_size_to_malloc) == cudaSuccess);
+        }
     }
     int32_t getBatchSize() const noexcept override {
         return _batch_size;
     }
     bool getBatch(void* bindings[], const char* names[], int32_t nbBindings) noexcept override{
-        auto resize_strategy = 
-            [&](const cv::Mat& image){
-                const int ori_height = image.rows;
-                const int ori_width = image.cols;
-                int fix_height, fix_width;
-                float scale;
-                if (ori_height > ori_width){
-                    fix_height = _input_height;
-                    scale = _input_height / static_cast<float>(ori_height);
-                    fix_width = static_cast<int>(ori_width * scale);
-                }else{
-                    fix_width = _input_width;
-                    scale = _input_width / static_cast<float>(ori_width);
-                    fix_height = static_cast<int>(ori_height * scale);
-                }
-
-                cv::Mat resized_image;
-                cv::resize(image, resized_image, {fix_width, fix_height});
-                auto out = std::make_shared<cv::Mat>(_input_height, _input_width, CV_8UC3, cv::Scalar{0, 0, 0});
-                resized_image.copyTo((*out)(cv::Rect(0, 0, fix_width, fix_height)));
-                return out;
-            };
-        const int single_channel_pixel_size = _input_height * _input_width;
-        const int single_image_float_element_size = single_channel_pixel_size * _input_channel;
-        auto flatten_strategy = 
-            [&](float* data_ptr, const cv::Mat& image){
-                int idx = 0;
-                for (int r = 0 ; r < _input_height ; ++ r){
-                    uchar* pixel_ptr = image.data + r * image.step;
-                    for (int c = 0 ; c < _input_width ; ++ c){
-                        data_ptr[idx] = pixel_ptr[2] / 255.0;
-                        data_ptr[idx + single_channel_pixel_size] = pixel_ptr[1] / 255.0;
-                        data_ptr[idx + 2 * single_channel_pixel_size] = pixel_ptr[0] / 255.0;
-                        pixel_ptr += 3;
-                        ++ idx;}
-                }
-                return single_image_float_element_size;
-            };
+        CHECK(_buffers.size() == nbBindings);
+        for (int i = 0 ; i < nbBindings ; ++ i){
+            bindings[i] = static_cast<void*>(_buffers[i]);
+        }
         
         auto image_ptr = std::make_shared<cv::Mat>(cv::imread("/data/binfeng/projects/server_multi-platform/images/bus.jpg"));
 
@@ -88,14 +74,13 @@ public:
         for (int i = 0 ; i < _batch_size ; ++ i)
             dataloader.push(image_ptr);
         
-        for (int i = 0 ; i < nbBindings ; ++ i){
-            if (_network->getInput(i)->isNetworkInput()){
-                dataloader.
-            }
+        std::vector<float*> data_ptrs;
+        for (int i = 0 ; i < _network->getNbInputs() ; ++ i){
+            data_ptrs.push_back(static_cast<float*>(bindings[i]));
         }
 
-        static int c = 0;
-        cudaMalloc(&bindings[0],input_height * input_width * input_channel * batch_size * sizeof(float));
+        std::vector<DataLoader::BatchInfo> _;
+        dataloader.get_batch(_resize_strategy, _flatten_strategy, data_ptrs, _);
         return ++c % 10 == 0 ? false : true;
     }
     const void* readCalibrationCache(std::size_t& length) noexcept override{
@@ -105,18 +90,24 @@ public:
 
     }
 private:
-    const int _batch_size = 4;
-    int _input_height, _intput_width, _input_channel;
     std::shared_ptr<INetworkDefinition> _network {};
+    const int _batch_size = 4;
+    const int _input_height;
+    const int _input_width;
+    const int _input_channel;
+    ResizeStrategyPadding _resize_strategy;
+    FlattenStrategyHWC2CHW _flatten_strategy;
+    
     std::vector<void *> _buffers;
 };
 
 
 static std::shared_ptr<IHostMemory> parse_onnx_file(
-                                            const std::string& model_path,
-                                            const int minBatch,
-                                            const int optBatch,
-                                            const int maxBatch){
+                                        const std::string& model_path,
+                                        const std::string& calib_dataset_dir,
+                                        const int minBatch,
+                                        const int optBatch,
+                                        const int maxBatch){
     ModelFramework::TensorRT::TensorrtLogger logger;
     std::unique_ptr<IBuilder> builder{nvinfer1::createInferBuilder(logger)};
     std::shared_ptr<INetworkDefinition> network{builder->createNetworkV2(1)};
@@ -144,10 +135,12 @@ static std::shared_ptr<IHostMemory> parse_onnx_file(
     }
     config->setFlag(nvinfer1::BuilderFlag::kINT8);
     config->setFlag(nvinfer1::BuilderFlag::kSTRICT_TYPES);
-    config->setInt8Calibrator(new INT8_Calibrator(batch_size,input_height,input_width,input_channel));
-    model_config->nvConfigSetting(config.get(), batch_size, input_height, input_width, input_channel);
-    generate TensorRT engine optimized for the target platform
-    builder->setMaxBatchSize(32);
+    auto calibrator = std::make_shared<INT8_Calibrator>(network,
+                                                    optBatch == -1 ? network->getInput(0)->getDimensions().d[0] : optBatch, 
+                                                    calib_dataset_dir);
+    config->setInt8Calibrator(calibrator.get());
+    // generate TensorRT engine optimized for the target platform
+    // builder->setMaxBatchSize(32);
     std::shared_ptr<nvinfer1::IHostMemory> engineOutput;
     engineOutput.reset(builder->buildSerializedNetwork(*network, *config));
     return engineOutput;

@@ -13,5 +13,6 @@ target_link_libraries(tool_onnx_int8_quat nvonnxparser)
 target_link_libraries(tool_onnx_int8_quat glog)
 target_link_libraries(tool_onnx_int8_quat common)
 target_link_libraries(tool_onnx_int8_quat tensorrt)
+target_link_libraries(tool_onnx_int8_quat process_strategy)
 
 target_include_directories(tool_onnx_int8_quat INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

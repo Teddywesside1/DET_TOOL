@@ -5,7 +5,15 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "interface_process_strategy.hpp"
+
 namespace DataLoader{
+
+struct BatchInfo{
+    int origin_height;
+    int origin_width;
+    float scale;
+};
 
 class IDataLoader{
 public:
@@ -17,9 +25,10 @@ public:
      * @return int 
      */
     virtual int
-    get_batch(std::function<std::shared_ptr<cv::Mat>(const cv:: Mat&)> resize_strategy,
-            std::function<int(float*, const cv::Mat&)> flatten_strategy,
-            std::vector<float*> & data_ptrs) = 0;
+    get_batch(ModelInference::ProcessStrategy::IResizeStrategy &resize_strategy,
+            ModelInference::ProcessStrategy::IFlattenStrategy &flatten_strategy,
+            std::vector<float*> & data_ptrs,
+            std::vector<BatchInfo> & batch_info) = 0;
 
 
     virtual bool

@@ -1,6 +1,6 @@
 #include "util_compute_function.hpp"
 #include <cmath>
-
+#include <glog/logging.h>
 
 
 
