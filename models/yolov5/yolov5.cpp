@@ -114,7 +114,7 @@ int Yolov5::pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataload
     //         };
 
 
-    return dataloader->get_batch(_resize_strategy,
+    return dataloader->get_buffer_as_one_batch(_resize_strategy,
                                 _flatten_strategy,
                                 input_blobs,
                                 image_scale_info);    

@@ -11,14 +11,13 @@
 #include "defs.hpp"
 
 
-using namespace std;
 using namespace nvinfer1;
 
 namespace ModelFramework{
 
 namespace TensorRT{
 
-class TRTRuntimeException : public exception {
+class TRTRuntimeException : public std::exception {
 public:
     TRTRuntimeException(const std::string hint)
                         : _hint(hint){
@@ -35,8 +34,12 @@ private:
 
 class TRTModelFramework : public IModelFramework{
 public:
-    TRTModelFramework(const string model_path);
-    // int inference(std::shared_ptr<void> data_ptr) override;
+    TRTModelFramework(const std::string model_path);
+    /**
+     * @brief make the framework inference, to fill the buffer with result data
+     * 
+     * @param batch_size should be equal to the batch_size of input data which has been inplaced in buffer
+     */
     void framework_forward(const int batch_size) override;
 
     std::vector<void*>& get_buffer() override;
@@ -44,15 +47,15 @@ public:
     ~TRTModelFramework();
 
 private:
-    void loadEngine(const string& engine_file_path);
+    void loadEngine(const std::string& engine_file_path);
     int getSizeByDim(const nvinfer1::Dims& dims);
     void prepareContext();
 private:
 
     TensorrtLogger logger {};
-    unique_ptr<ICudaEngine> engine{nullptr};
-    unique_ptr<IExecutionContext> context{nullptr};
-    vector<void*> buffers;
+    std::unique_ptr<ICudaEngine> engine{nullptr};
+    std::unique_ptr<IExecutionContext> context{nullptr};
+    std::vector<void*> buffers;
 
     bool _engine_built_with_implicit_batch = true;
 };

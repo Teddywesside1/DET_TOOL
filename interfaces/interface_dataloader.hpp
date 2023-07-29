@@ -20,15 +20,24 @@ public:
     /**
      * @brief Get the batch object
      * 
+     * @param resize_strategy 
      * @param flatten_strategy 
      * @param data_ptrs 
+     * @param batch_info 
      * @return int 
      */
     virtual int
-    get_batch(ModelInference::ProcessStrategy::IResizeStrategy &resize_strategy,
+    get_buffer_as_one_batch(ModelInference::ProcessStrategy::IResizeStrategy &resize_strategy,
             ModelInference::ProcessStrategy::IFlattenStrategy &flatten_strategy,
             std::vector<float*> & data_ptrs,
             std::vector<BatchInfo> & batch_info) = 0;
+    
+    virtual bool
+    get_explicit_batch(ModelInference::ProcessStrategy::IResizeStrategy &resize_strategy,
+            ModelInference::ProcessStrategy::IFlattenStrategy &flatten_strategy,
+            std::vector<float*> & data_ptrs,
+            std::vector<BatchInfo> & batch_info,
+            const int batch_size) = 0;
 
 
     virtual bool

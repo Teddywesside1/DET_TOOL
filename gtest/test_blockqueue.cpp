@@ -22,14 +22,14 @@ TEST(data_structure_test, block_queue)
 
     ASSERT_EQ(block_queue.size(), max_queue_size);
 
-    int cur = block_queue.pop();
+    int cur = block_queue.pop().value();
     ASSERT_EQ(cur, 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     ASSERT_EQ(block_queue.size(), max_queue_size);
 
     for (int i = 0 ; i < max_queue_size ; ++ i){
-        int ret = block_queue.pop();
+        int ret = block_queue.pop().value();
         ASSERT_EQ(ret, i + 1);
     }
 

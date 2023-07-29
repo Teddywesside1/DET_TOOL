@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <mutex>
+#include <optional>
 
 #include <glog/logging.h>
 #include <glog/log_severity.h>
@@ -21,7 +22,7 @@ public:
 
     BlockQueue(const int maxQueueSize);
 
-    _value_type pop();
+    std::optional<_value_type> pop();
 
     void push(const _value_type& value);
 
@@ -31,6 +32,8 @@ public:
 
     bool empty() ;
 
+    void callStop();
+
 private:
     std::queue<_Type> _q;
     const int _maxQueueSize;
@@ -38,6 +41,8 @@ private:
     std::mutex _queue_lock;
     std::condition_variable _consumer_cv;
     std::condition_variable _producer_cv;
+
+    std::atomic<bool> _stop_flag {false};
 };
 
 
@@ -50,11 +55,14 @@ BlockQueue<_Type>::BlockQueue(const int maxQueueSize)
 }
 
 template <typename _Type>
-typename BlockQueue<_Type>::_value_type 
+std::optional<typename BlockQueue<_Type>::_value_type>
 BlockQueue<_Type>::pop(){
     std::unique_lock<std::mutex> u_lck(_queue_lock);
-    while (_q.empty()){
+    while (_q.empty() && !_stop_flag.load()){
         _consumer_cv.wait(u_lck);
+    }
+    if (_stop_flag.load() && _q.empty()){
+        return std::nullopt;
     }
     _value_type value = _q.front();
     _q.pop();
@@ -67,8 +75,11 @@ template <typename _Type>
 void 
 BlockQueue<_Type>::push(const _value_type& value){
     std::unique_lock<std::mutex> u_lck(_queue_lock);
-    while (_q.size() >= _maxQueueSize){
+    while (_q.size() >= _maxQueueSize && !_stop_flag.load()){
         _producer_cv.wait(u_lck);
+    }
+    if (_stop_flag.load()){
+        return;
     }
     _q.push(value);
     _consumer_cv.notify_one();
@@ -78,8 +89,11 @@ template <typename _Type>
 void 
 BlockQueue<_Type>::push(const _value_type&& value){
     std::unique_lock<std::mutex> u_lck(_queue_lock);
-    while (_q.size() >= _maxQueueSize){
+    while (_q.size() >= _maxQueueSize && !_stop_flag.load()){
         _producer_cv.wait(u_lck);
+    }
+    if (_stop_flag.load()){
+        return;
     }
     _q.push(value);
     _consumer_cv.notify_one();
@@ -101,4 +115,13 @@ bool
 BlockQueue<_Type>::empty() {
     std::unique_lock<std::mutex> u_lck(_queue_lock);
     return _q.empty();
+}
+
+
+template <typename _Type>
+void 
+BlockQueue<_Type>::callStop() {
+    _stop_flag.store(true);
+    _producer_cv.notify_all();
+    _consumer_cv.notify_all();
 }

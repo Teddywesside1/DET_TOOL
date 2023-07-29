@@ -28,8 +28,8 @@ TRTModelFramework::TRTModelFramework(const std::string model_path) {
 }
 
 
-void TRTModelFramework::loadEngine(const string& engine_file_path) {
-    ifstream file(engine_file_path, ios::binary);
+void TRTModelFramework::loadEngine(const std::string& engine_file_path) {
+    std::ifstream file(engine_file_path, std::ios::binary);
     if(!file.good())
     {
         throw TRTRuntimeException("engine file : " + engine_file_path + " not good !");
@@ -46,7 +46,7 @@ void TRTModelFramework::loadEngine(const string& engine_file_path) {
     
     file.close();
 
-    unique_ptr<IRuntime> runtime{nvinfer1::createInferRuntime(logger)};
+    std::unique_ptr<IRuntime> runtime{nvinfer1::createInferRuntime(logger)};
     
     engine.reset(runtime->deserializeCudaEngine(data.data(), data.size()));
 }
