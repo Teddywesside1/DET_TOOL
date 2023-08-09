@@ -25,8 +25,8 @@ public:
                     const std::shared_ptr<DataLoader::IDataLoader>& dataloader, 
                     std::vector<std::vector<Object2D>> &output_objs) override;
 
-    typedef ModelInference::ProcessStrategy::FlattenStrategyHWC2CHW     _FlattenStrategy;
-    typedef ModelInference::ProcessStrategy::ResizeStrategyPadding      _ResizeStrategy;
+    typedef ModelInference::ProcessStrategy::FlattenStrategyHWC2CHW_OpenMP      _FlattenStrategy;
+    typedef ModelInference::ProcessStrategy::ResizeStrategyPadding              _ResizeStrategy;
 
 private:
     int pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataloader,
@@ -65,13 +65,13 @@ private:
 
     std::vector<std::shared_ptr<float>> _input_blobs{};
 
-    std::vector<std::vector<Anchor2D>> anchors {
+    std::vector<std::vector<Anchor2D>> _anchors {
         {{10,13}, {16,30}, {33,23}},
         {{30,61}, {62,45}, {59,119}},
         {{116,90}, {156,198}, {373,326}}
     };
 
-    std::vector<int> scale_factors {
+    std::vector<int> _scale_factors {
         8, 16, 32
     };
 };

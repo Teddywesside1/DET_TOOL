@@ -22,6 +22,7 @@ target_link_libraries(gtests yolov5)
 target_link_libraries(gtests dataloader_objdet_2d)
 target_link_libraries(gtests GTest::Main)
 target_link_libraries(gtests common)
+target_link_libraries(gtests framework_ncnn)
 
 target_include_directories(gtests INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 

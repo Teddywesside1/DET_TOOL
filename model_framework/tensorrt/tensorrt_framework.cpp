@@ -96,7 +96,10 @@ std::vector<void*>& TRTModelFramework::get_buffer(){
 }
 
 
-void TRTModelFramework::framework_forward(const int batch_size){
+void TRTModelFramework::framework_forward(const int batch_size,
+                                            const int input_height,
+                                            const int input_width,
+                                            const int input_channel){
     if (_engine_built_with_implicit_batch){    
         int bd_number = engine->getNbBindings();
         for (int i = 0 ; i < bd_number ; i++)

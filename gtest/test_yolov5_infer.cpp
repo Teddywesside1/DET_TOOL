@@ -1,11 +1,13 @@
 #include "yolov5.hpp"
 #include "tensorrt_framework.hpp"
 #include "dataloader_objdet_2d.hpp"
+#include "ncnn_framework.hpp"
 #include <gtest/gtest.h>
 #include "util_image.hpp"
 
 using namespace DataLoader;
 using namespace ModelFramework::TensorRT;
+using namespace ModelFramework::NCNN;
 using namespace ModelInference::ObjectDetection2D;
 
 const float CONF_THRESH = 0.3;
@@ -16,7 +18,7 @@ TEST(det_infer_single_batch_one_run, yolov5)
     std::string test_image_path = "/data/binfeng/projects/server_multi-platform/images/bus.jpg";
     auto model_instance = std::make_shared<TRTModelFramework>("/data/binfeng/projects/server_multi-platform/pretrained/yolov5s_trtexec_fp16.engine");
     Yolov5 yolo_model(model_instance, 640, 640, 3, CLASSIFICATION_NUMBER);
-    const auto dataloader = std::make_shared<DataLoaderObjDet2D>();
+    auto dataloader = std::make_shared<DataLoaderObjDet2D>();
     auto image = std::make_shared<cv::Mat>(cv::imread(test_image_path));
     dataloader->push(image);
 
@@ -184,4 +186,32 @@ TEST(det_infer_single_batch_many_run, yolov5_int8)
         auto end = std::chrono::high_resolution_clock::now();    
         LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     }
+}
+
+
+
+TEST(det_infer_single_batch_one_run_ncnn, yolov5)
+{
+    std::string test_image_path = "/data/binfeng/projects/server_multi-platform/images/bus.jpg";
+    // auto model_instance = std::make_shared<TRTModelFramework>("/data/binfeng/projects/server_multi-platform/pretrained/yolov5s_trtexec_fp16.engine");
+    auto model_instance = std::make_shared<NCNNModelFramework>("/data/binfeng/projects/server_multi-platform/pretrained/yolov5s_sim.param",
+                                    "/data/binfeng/projects/server_multi-platform/pretrained/yolov5s_sim.bin");
+    Yolov5 yolo_model(model_instance, 640, 640, 3, CLASSIFICATION_NUMBER);
+    const auto dataloader = std::make_shared<DataLoaderObjDet2D>();
+    auto image = std::make_shared<cv::Mat>(cv::imread(test_image_path));
+    dataloader->push(image);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<Object2D>> outputs;
+    yolo_model.do_inference(CONF_THRESH, dataloader, outputs);
+    auto end = std::chrono::high_resolution_clock::now();    
+    LOG(INFO) << "do_inference, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    ImageDrawHelper drawer(image);
+
+    for (const auto obj : outputs[0]){
+        drawer.drawRect2D(obj);
+    }
+    
+    cv::imwrite(test_image_path + "_test_result.jpg", *image);
 }

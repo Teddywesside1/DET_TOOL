@@ -2,39 +2,26 @@
 
 
 #include "interface_model_framework.hpp"
-#include <NvInfer.h>
-#include <NvOnnxParser.h>
 #include <memory>
 #include <exception>
-#include "util_tensorrt.hpp"
 #include "util_path.hpp"
 #include "defs.hpp"
+#include <net.h>
 
-
-using namespace nvinfer1;
 
 namespace ModelFramework{
 
-namespace TensorRT{
+namespace NCNN{
 
-class TRTRuntimeException : public std::exception {
+class NCNNModelFramework : public IModelFramework {
 public:
-    TRTRuntimeException(const std::string hint)
-                        : _hint(hint){
+    NCNNModelFramework(const std::string model_param_path, const std::string model_bin_path);
 
-    }
+    static void setMaxInputShape(const int maxBatch,
+                                    const int maxHeight,
+                                    const int maxWidth,
+                                    const int maxChannel);
 
-    const char * what() const noexcept override {
-        return _hint.c_str();
-    }
-private:
-    std::string _hint;
-};
-
-
-class TRTModelFramework : public IModelFramework{
-public:
-    TRTModelFramework(const std::string model_path);
     /**
      * @brief 
      * 
@@ -48,26 +35,32 @@ public:
                             const int input_width,
                             const int input_channel) override;
 
+    /**
+     * @brief Get the buffer object
+     * 
+     * @return std::vector<void*>& 
+     */
     std::vector<void*>& get_buffer() override;
 
-    ~TRTModelFramework();
+    ~NCNNModelFramework();
+private:
+    void loadNCNNModel(const std::string model_param_path,
+                        const std::string model_bin_path);
+
+    void prepareBuffer();
+    
+private:
+    ncnn::Net _ncnn_model;
+    ncnn::Extractor _ncnn_ex;
+    std::vector<void*> _buffer;
+    std::vector<ncnn::Mat> _output_blob_buffer;
+
 
 private:
-    void loadEngine(const std::string& engine_file_path);
-    int getSizeByDim(const nvinfer1::Dims& dims);
-    void prepareContext();
-private:
-
-    TensorrtLogger logger {};
-    std::unique_ptr<ICudaEngine> engine{nullptr};
-    std::unique_ptr<IExecutionContext> context{nullptr};
-    std::vector<void*> buffers;
-
-    bool _engine_built_with_implicit_batch = true;
+    static int maxBatch, maxHeight, maxWidth, maxChannel;
 };
 
-
-} // TensorRT
+} // NCNN
 
 } // ModelFramework
 

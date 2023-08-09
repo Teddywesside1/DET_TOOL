@@ -41,13 +41,13 @@ void Yolov5::do_inference(const float conf_thresh,
     
     // 3. infer by infer_framework
     start = std::chrono::high_resolution_clock::now();
-    _model_instance->framework_forward(batch_size);
+    _model_instance->framework_forward(batch_size, _input_height, _input_width, _input_channel);
     end = std::chrono::high_resolution_clock::now();
     LOG(INFO) << "framework_forward, cost : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     
     // 4. postprocess
     start = std::chrono::high_resolution_clock::now();
-    std::vector<float*> output_blobs(3);
+    std::vector<float*> output_blobs(buffers.size() - 1);
     for (int i = 1 ; i < buffers.size() ; ++ i){
         output_blobs[i-1] = static_cast<float*>(buffers[i]);
     }
@@ -66,53 +66,8 @@ void Yolov5::do_inference(const float conf_thresh,
 int Yolov5::pre_process(const std::shared_ptr<DataLoader::IDataLoader>& dataloader,
                         std::vector<DataLoader::BatchInfo> &image_scale_info,
                         void * input_blob){
-    // const int single_channel_pixel_size = _input_height * _input_width;
-    // const int single_image_float_element_size = single_channel_pixel_size * _input_channel;
     std::vector<float *> input_blobs(1);
     input_blobs[0] = static_cast<float*>(input_blob);
-
-    // auto resize_strategy = 
-    //         [&](const cv::Mat& image){
-    //             const int ori_height = image.rows;
-    //             const int ori_width = image.cols;
-    //             int fix_height, fix_width;
-    //             float scale;
-    //             if (ori_height > ori_width){
-    //                 fix_height = _input_height;
-    //                 scale = _input_height / static_cast<float>(ori_height);
-    //                 fix_width = static_cast<int>(ori_width * scale);
-    //             }else{
-    //                 fix_width = _input_width;
-    //                 scale = _input_width / static_cast<float>(ori_width);
-    //                 fix_height = static_cast<int>(ori_height * scale);
-    //             }
-    //             image_scale_info.push_back(ImageScaleInfo{ori_height, ori_width, scale});
-
-    //             cv::Mat resized_image;
-    //             cv::resize(image, resized_image, {fix_width, fix_height});
-    //             auto out = std::make_shared<cv::Mat>(_input_height, _input_width, CV_8UC3, cv::Scalar{0, 0, 0});
-    //             resized_image.copyTo((*out)(cv::Rect(0, 0, fix_width, fix_height)));
-    //             return out;
-    //         };
-
-    // auto flatten_strategy = 
-    //         [&](float* data_ptr, const cv::Mat& image){
-    //             int idx = 0;
-    //             for (int r = 0 ; r < _input_height ; ++ r){
-    //                 uchar* pixel_ptr = image.data + r * image.step;
-    //                 for (int c = 0 ; c < _input_width ; ++ c){
-    //                     data_ptr[idx] = pixel_ptr[2] / 255.0;
-    //                     data_ptr[idx + single_channel_pixel_size] = pixel_ptr[1] / 255.0;
-    //                     data_ptr[idx + 2 * single_channel_pixel_size] = pixel_ptr[0] / 255.0;
-    //                     pixel_ptr += 3;
-    //                     ++ idx;
-    //                     // if (data_ptr > input_blobs[0]) 
-    //                     //     LOG(INFO) << "buffer data : " << data_ptr[idx] << ",  pixel value : " << pixel_ptr[2] / 255.0;
-    //                 }
-    //             }
-    //             return single_image_float_element_size;
-    //         };
-
 
     return dataloader->get_buffer_as_one_batch(_resize_strategy,
                                 _flatten_strategy,
@@ -128,6 +83,8 @@ void Yolov5::scale_objs_to_origin_image_size(
     CHECK(output_objs.size() == image_scale_info.size());
 
     const int batch_size = image_scale_info.size();
+
+    #pragma omp parallel for
     for (int i = 0 ; i < batch_size ; ++ i){
         const DataLoader::BatchInfo & info = image_scale_info[i];
         // LOG(INFO) << "image_scale_info, batch_idx : " << i << " scale : " << info.scale;
@@ -149,7 +106,7 @@ void Yolov5::post_process(const int batch_size,
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<Object2D>> candidate_objs(batch_size);
-    const int LEVEL_TOTAL = output_blobs.size();
+    const int LEVEL_TOTAL = _anchors.size();
     for (int level = 0 ; level < LEVEL_TOTAL ; ++ level){
         generate_anchor_from_blob(batch_size,
                                 level,
@@ -187,9 +144,9 @@ void Yolov5::generate_anchor_from_blob( const int batch_size,
                                 const float conf_thresh,
                                 float* output_blob,
                                 std::vector<std::vector<Object2D>> &candidate_objs){
-    CHECK(level >= 0 && level < anchors.size());
-    const std::vector<Anchor2D> &level_anchor = anchors[level];
-    const int scale_factor = scale_factors[level];
+    CHECK(level >= 0 && level < _anchors.size());
+    const std::vector<Anchor2D> &level_anchor = _anchors[level];
+    const int scale_factor = _scale_factors[level];
 
     const int level_height = _input_height / scale_factor;
     const int level_width = _input_width / scale_factor;
@@ -210,10 +167,13 @@ void Yolov5::generate_anchor_from_blob( const int batch_size,
 
     for (int batch_idx = 0; batch_idx < batch_size ; ++ batch_idx){
         const int offset_in_batch = total_float_element_number_per_batch * batch_idx;
+        
         for (int anchor_idx = 0 ; anchor_idx < level_anchor_number ; ++ anchor_idx){
             const int anchor_width = level_anchor[anchor_idx].width;
             const int anchor_height = level_anchor[anchor_idx].height;
             const int offset_in_anchor = offset_in_batch + float_element_number_per_anchor * anchor_idx;
+            
+            #pragma omp parallel for
             for (int f_r = 0 ; f_r < level_height ; ++ f_r){
                 for (int f_c = 0 ; f_c < level_width ; ++ f_c){
                     // 1. get the feature for target anchor at [anchor_idx, f_r, f_c]

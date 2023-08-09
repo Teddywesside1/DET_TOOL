@@ -24,7 +24,10 @@ public:
      * 
      * @param batch_size 
      */
-    virtual void framework_forward(const int batch_size) = 0;
+    virtual void framework_forward(const int batch_size,
+                                    const int input_height,
+                                    const int input_width,
+                                    const int input_channel) = 0;
 
     /**
      * @brief Get the buffer object

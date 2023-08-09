@@ -11,5 +11,10 @@ public:
 };
 
 
+class FlattenStrategyHWC2CHW_OpenMP : public IFlattenStrategy{
+public:
+    int operator()(float* data_ptr, const cv::Mat& image);
+};
+
 } // ProcessStrategy
 }// ModelInference
